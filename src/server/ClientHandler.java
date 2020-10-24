@@ -18,11 +18,11 @@ public class ClientHandler {
         try {
             this.server = server;
             this.socket = socket;
-            in = new DataInputStream(socket.getInputStream());
-            out = new DataOutputStream(socket.getOutputStream());
-            System.out.println("Client connected " + socket.getRemoteSocketAddress());
+            in = new DataInputStream( socket.getInputStream() );
+            out = new DataOutputStream( socket.getOutputStream() );
+            System.out.println( "Client connected " + socket.getRemoteSocketAddress() );
 
-            new Thread(() -> {
+            new Thread( () -> {
                 try {
                     //цикл аутентификации
                     while (true) {
@@ -36,10 +36,16 @@ public class ClientHandler {
                             String newNick = server.getAuthService()
                                     .getNicknameByLoginAndPassword(token[1], token[2]);
                             if (newNick != null){
-                                nickname = newNick;
-                                server.subscribe(this);
-                                sendMsg("/authok "+ newNick);
-                                break;
+
+                                if (server.repeatNickname( newNick )) {
+                                    sendMsg( "/authmistake: ник " + newNick + " уже подключен" );
+                                } else {
+                                    nickname = newNick;
+                                    server.subscribe( this );
+                                    sendMsg( "/authok " + newNick );
+                                    break;
+                                }
+
                             } else {
                                 sendMsg("Неверный логин / пароль");
                             }
@@ -51,17 +57,31 @@ public class ClientHandler {
                     while (true) {
                         String str = in.readUTF();
 
-                        if (str.equals("/end")) {
-                            sendMsg("/end");
-                            break;
+                        if (str.startsWith( "/" )) {
+
+                            if (str.startsWith( "/w" )) {
+                                String[] tokens = str.split( "\\s" );
+                                if (tokens.length >= 3) {
+                                    server.sendPrivate( ClientHandler.this, tokens[1], tokens[2] );
+                                } else {
+                                    sendMsg( "Ошибка:\nНеобходимо ввести \"/w nickname text\"" );
+                                }
+                            }
+
+                            if (str.equals( "/end" )) {
+                                sendMsg( " /end" );
+                                break;
+                            }
+
+                        } else {
+                            server.broadcastMsg( this, str );
                         }
-                        server.broadcastMsg(this, str);
                     }
                 } catch (IOException e) {
                     e.printStackTrace();
                 } finally {
-                    server.unsubscribe(this);
-                    System.out.println("Client disconnected " + socket.getRemoteSocketAddress());
+                    server.unsubscribe( this );
+                    System.out.println( "Client disconnected " + socket.getRemoteSocketAddress() );
                     try {
                         socket.close();
                         in.close();
@@ -70,7 +90,7 @@ public class ClientHandler {
                         e.printStackTrace();
                     }
                 }
-            }).start();
+            } ).start();
 
         } catch (IOException e) {
             e.printStackTrace();
@@ -79,7 +99,7 @@ public class ClientHandler {
 
     public void sendMsg(String msg) {
         try {
-            out.writeUTF(msg);
+            out.writeUTF( msg );
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -88,4 +108,5 @@ public class ClientHandler {
     public String getNickname() {
         return nickname;
     }
+
 }
